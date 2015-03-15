@@ -1,0 +1,172 @@
+#!/usr/bin/env python
+#
+# The MIT License (MIT)
+#
+# Copyright (c) 2015 Tero Saarni
+# 
+# Permission is hereby granted, free of charge, to any person
+# obtaining a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+# BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+# ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+# CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+from __future__ import print_function
+import fnmatch
+import os
+import json
+import string
+import sys
+
+# path to web server document root
+document_root = '/var/www/html'
+
+# relative path from document_root
+box_url = 'vagrant'
+
+# server base url
+base_url = 'http://somewhere.com'
+
+# version of this script
+version = "v 2015-03-15"
+
+########################################################################
+#
+# Templates
+#
+
+doc_header = """Content-type: text/html
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="author" content="https://github.com/tsaarni/vagrant-box-index">
+  <title>Vagrant box index</title>
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.2/css/bootstrap.min.css">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.2/css/bootstrap-theme.min.css">
+<style>
+body {
+  padding-top: 50px;
+}
+.navbar-inverse .navbar-brand {
+  color: white;
+}
+.boxes {
+  padding: 40px 15px;
+}
+.footer {
+  border-top: 1px solid #eee;
+  padding: 15px 15px;
+}
+.popover {
+  max-width: 100%;
+}
+.version {
+  color: #eee;
+}
+</style>
+</head>
+
+<body>
+
+<nav class="navbar navbar-inverse navbar-fixed-top">
+  <div class="container">
+    <div class="navbar-header">
+      <a class="navbar-brand" href="#">Vagrant box index</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="boxes">
+    <table class="table table-striped">
+      <thead>
+        <th>name</th>
+        <th>description</th>
+        <th></th>
+      </thead>
+      <tbody>
+"""
+
+box_template = """
+        <tr>
+          <td>{name}</td>
+          <td>{description}</td>
+          <td><button class="btn btn-xs btn-default" type="button"
+                      data-toggle="popover" data-placement="left"
+                      title="Paste following command to shell"
+                      data-content="vagrant box add --name &quot;{name}&quot; {base_url}/{rela_url}">download</button>
+          </td>
+        </tr>
+"""
+
+doc_footer = """
+      </tbody>
+    </table>
+  </div> <!-- boxes -->
+</div> <!-- container -->
+
+<div class="container">
+  <footer class="footer">
+      <iframe src="//ghbtns.com/github-btn.html?user=tsaarni&repo=vagrant-box-index&type=star" frameborder="0" scrolling="0" width="170px" height="20px"></iframe>
+      <div class="pull-right"><small class="version">{version}</small></div>
+  </footer>
+</div>
+
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.2/js/bootstrap.min.js"></script>
+<script type="text/javascript">
+  $(function () {{
+    $('[data-toggle="popover"]').popover()
+  }});
+</script>
+
+</body>
+</html>
+""".format(version=version)
+
+
+########################################################################
+#
+# Main
+#
+
+boxes={}
+
+for root, dirnames, filenames in os.walk(os.path.join(document_root, box_url)):
+  for filename in fnmatch.filter(filenames, '*.json'):
+    path = os.path.join(root, filename)
+    box = None
+    try:
+      box = json.load(file(path))
+    except ValueError as e:
+      box = {'name': path, 'description': 'Error parsing file: %s' % e}
+      print('Error parsing file: %s\n   %s' % (path, e), file=sys.stderr)
+    boxes[box['name']] = box, path
+
+print(doc_header)
+
+for name in sorted(boxes):
+  box, path = boxes[name]
+  print(box_template.format(name=box['name'],
+                            description=box.get('description', ''),
+                            rela_url=os.path.relpath(path, document_root),
+                            base_url=base_url))
+
+print(doc_footer)
+
